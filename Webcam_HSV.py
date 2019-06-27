@@ -1,14 +1,11 @@
 '''
 Webcam_HSV_ reads the image from the camera then looks for circles on every frame. 
-
 To find circles it applies HSV color filters to each frame and looks for circular contours
 with each filter applied. 
-
 Using ROS, The center point data is published on 3 nodes: 
 'center_points'                 The data is the center points at every frame
 'center_points_formatted'       the data is formatted to CSV data (color,(x,y),color1,(x1,y1) etc.)
 'center_points_less_frames'     The data is the center points at every 5th frame
-
 the frame rate for 'center_points_less_frames' can be set on line 44: frame_num
 UNITS: cm -> is converted from pixels, must to be recalibrated with new camera or monitor
 '''
@@ -17,7 +14,6 @@ UNITS: cm -> is converted from pixels, must to be recalibrated with new camera o
 HOW TO SAVE THE LOCATION DATA TO A SPECIFIC FILE TYPE:
 run this betwel line in a terminal to publish the data to a .txt file
 rostopic echo /center_points >>file.txt
-
 the data can also be saved to a .bag file of rosbag. This would not be a .txt file but rather a file of data
 rosbag is not implemented
 '''
@@ -29,6 +25,7 @@ import numpy as np
 import cv2
 import rospy
 from std_msgs.msg import String
+import datetime
 
 
 def format_for_csv(data):
@@ -42,6 +39,15 @@ def format_for_csv(data):
 	return data_string
 
 def main():
+    #sets video to save as current date and time
+    now = datetime.datetime.now()
+    video_name = now.strftime("%Y-%m-%d %H:%M.avi")
+
+
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(video_name,fourcc, 20.0, (640,480))
+
     frame_num = 5 # looks at every 5th frame
 
     # 120 pixels = 88.85 mm
@@ -49,22 +55,22 @@ def main():
     conversion = 120 / 8.885  # PIXELS / CM    eg [pixels /  cm]
 
     # define the lower and upper boundaries of the colors in the HSV color space
-    lower = {'dark pink': (137, 91, 0),
-             'green': (43, 56, 73),
-             'blue': (105, 56, 75),
-             'yellow': (0, 88, 130),
-             'orange': (0, 88, 85),
-             'brown': (0, 41, 47),
-             'light pink': (132, 14, 132)}
+    lower = {'dark pink': (138, 67, 38),
+             'green': (65, 32, 67),
+             'blue': (99, 50, 46),
+               'yellow': (21, 75, 45),
+             'orange': (11, 134, 115),
+             'brown': (0, 41, 47), #not calibrated
+             'light pink': (145, 115, 130)} #not calibrated
 	     # three more to be added
 
-    upper = {'dark pink': (255, 255, 255),
-             'green': (85, 255, 255),
-             'blue': (134, 255, 255),
-             'yellow': (136, 165, 255),
-             'orange': (20, 255, 255),
-             'brown': (18, 190, 106),
-             'light pink': (191, 90, 255)}
+    upper = {'dark pink': (191, 216, 219),
+             'green': (92, 85, 255),
+             'blue': (140, 255, 198),
+             'yellow': (38, 136, 196),
+             'orange': (38, 255, 196),
+             'brown': (18, 190, 106), #not calibrated 
+             'light pink': (160, 125, 150)} #not calibrated
 	     # three more to be added
 
     # define standard colors for printed circle around the object
@@ -128,7 +134,7 @@ def main():
                 # if the radius is between 40 and 60 pixels (current size about 50)
                 # This statement removes noise from larger blobs that may appear
                 # It may not be necessary when only the table appears in the frame
-                if 35 < radius < 45:
+                if 45 < radius < 65:
                     # draw the circle and centroid on the frame,
                     # then update the list of tracked points
                     cv2.circle(frame, (int(x), int(y)), int(radius), colors[key], 2)
@@ -141,6 +147,9 @@ def main():
 
             # STORING THE CENTER POINTS:
             centerPoints_current[key] = center
+	    
+	    #writes frome to video saver
+            out.write(frame)
 
             # show the frame to our screen
             cv2.imshow("Frame", frame)
@@ -165,11 +174,16 @@ def main():
         pub2.publish(centerPoints_csv)
         # pub3.publish(str(center_points_less_frames))
 
-    # cleanup the camera and close any open windows
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # cleanup the camera, stop saving video and close any open windows
     camera.release()
+    out.release()
     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
     main()
+
 
